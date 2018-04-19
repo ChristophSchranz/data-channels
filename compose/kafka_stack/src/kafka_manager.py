@@ -5,7 +5,7 @@ import json
 import logging
 from multiprocessing import Process
 import requests
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 from redis import Redis
 from logstash import TCPLogstashHandler
 
@@ -19,7 +19,7 @@ from logstash import TCPLogstashHandler
 
 
 __date__ = "05 April 2018"
-__version__ = "1.1"
+__version__ = "1.2"
 __email__ = "christoph.schranz@salzburgresearch.at"
 __status__ = "Development"
 __desc__ = """This program manages kafka topics on the broker."""
@@ -45,6 +45,10 @@ NUMBER_OF_REPLICAS = 1
 
 RETENTION_TIME = 6  # in months
 
+
+logger = logging.getLogger('kafka_manager.logging')
+logger.setLevel(os.getenv('LOG_LEVEL', logging.INFO))
+
 # # Sensorthings parameters
 # ST_SERVER = "http://il060:8082/v1.0/"
 # REFRESH_MAPPING_EVERY = 5 * 60  # in seconds
@@ -52,6 +56,8 @@ RETENTION_TIME = 6  # in months
 # webservice setup
 app = Flask(__name__)
 redis = Redis(host='redis', port=6379)
+logger.info("Added flask API on port {}.".format(6379))
+
 
 # http://0.0.0.0:3033/
 @app.route('/')
@@ -75,6 +81,7 @@ def list_topics():
     topics = pipe.read().split("\n")
     return topics
 
+
 # respond to invalid request
 @app.route('/create')
 @app.route('/create/<company>')
@@ -84,14 +91,22 @@ def create_invalid(**kwargs):
     return jsonify(response)
 
 
-# TODO maybe a department layer or plant is needed
-# http://0.0.0.0:3033/create/srfg/ultimaker/temp122
-@app.route('/create/<company>/<machine>/<sensor>')
-def create_topic(company, machine, sensor, persistence=2):
-    cmd = """kafka-topics --create --zookeeper {zoo} --topic eu.{com}.{mac}.{sns} 
- --replication-factor {rep} --partitions 1 --config cleanup.policy=compact --config flush.ms=60000 
+# http://0.0.0.0:3033/create_sensor
+# header: application/json
+@app.route('/create_sensor', methods=['GET', 'POST'])
+def create_topic2():  # company, machine, sensor, persistence=2):
+    data = json.loads(request.data)
+    company = data["sensor"].get("company", "")
+    system = data["sensor"].get("system", "")
+    sensor = data["sensor"].get("sensor", "")
+    result = data["sensor"].get("result", "")
+    topic_name = ".".join([str(i) for i in ["eu", company, system, sensor]])[:-1]
+    logger.info("Added sensor with topic {}, result is of type {}.".format(topic_name, type(result)))
+
+    cmd = """kafka-topics --create --zookeeper {zoo} --topic {tpc}
+ --replication-factor {rep} --partitions 1 --config cleanup.policy=compact --config flush.ms=60000
  --config retention.ms={ret}
-""".format(zoo=ZOOKEEPER_HOST, com=company, mac=machine, sns=sensor, rep=NUMBER_OF_REPLICAS,
+""".format(zoo=ZOOKEEPER_HOST, tpc=topic_name, rep=NUMBER_OF_REPLICAS,
            ret=RETENTION_TIME*31*24*3600*1000).replace("\n", "")
     pipe = os.popen(cmd)
     response = pipe.read()
@@ -100,30 +115,17 @@ def create_topic(company, machine, sensor, persistence=2):
             replace("\n", "").replace('"', "")  # [:-1]
     elif "Error" in response and "already exists." in response:
         # Topic already exists
-        pass
+        logger.warning("Couldn't create sensor with topic {}, topic already exists.".format(topic_name))
+        return jsonify({"Error, sensor already exists": str(response)}), 403
+    else:
+        logger.warning("Couldn't create sensor with topic {}".format(topic_name))
+        #return jsonify({"Couldn't create sensor with topic": str(response)}), 404
 
-    # print(cmd)
-    return jsonify(response)
+    logger.info("Added sensor with topic {}, result is of type {}.".format(topic_name, type(result)))
+    logger.info(response)
 
-# http://0.0.0.0:3033/create/srfg/ultimaker/temp122
-@app.route('/create_avro/<company>/<machine>/<sensor>')
-def create_topic(company, machine, sensor, persistence=2):
-    cmd = """kafka-topics --create --zookeeper {zoo} --topic eu.{com}.{mac}.{sns} 
- --replication-factor {rep} --partitions 1 --config cleanup.policy=compact --config flush.ms=60000 
- --config retention.ms={ret}
-""".format(zoo=ZOOKEEPER_HOST, com=company, mac=machine, sns=sensor, rep=NUMBER_OF_REPLICAS,
-           ret=RETENTION_TIME*31*24*3600*1000).replace("\n", "")
-    pipe = os.popen(cmd)
-    response = pipe.read()
-    if "\nCreated" in response:
-        response = "Created topic" + response.split("\nCreated topic")[-1].\
-            replace("\n", "").replace('"', "")  # [:-1]
-    elif "Error" in response and "already exists." in response:
-        # Topic already exists
-        pass
+    return jsonify(data)
 
-    # print(cmd)
-    return jsonify(response)
 
 if __name__ == '__main__':
 

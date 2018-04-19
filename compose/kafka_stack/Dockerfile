@@ -1,7 +1,6 @@
 FROM landoop/fast-data-dev:cp3.3.0
 MAINTAINER Christoph Schranz <christoph.schranz@salzburgresearch.at>
 
-
 #RUN rm -rf /usr/share/landoop/sample-data \
 #  && mkdir /usr/share/landoop/sample-data
 

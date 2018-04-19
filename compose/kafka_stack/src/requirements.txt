@@ -2,3 +2,4 @@ python-logstash
 flask
 redis
 requests
+uuid
