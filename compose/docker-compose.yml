@@ -3,7 +3,6 @@ version: "3.4"
 services:
   # this is our kafka cluster.
   kafka-cluster:
-#    image: landoop/fast-data-dev:cp3.3.0
     build: kafka_stack/
     environment:
       ADV_HOST: 127.0.0.1         # Change to 192.168.99.100 if using Docker Toolbox
@@ -17,4 +16,5 @@ services:
       - 9581-9585:9581-9585       # JMX Ports
       - 9092:9092                 # Kafka Broker
       - 3033:3033                 # Custom Kafka Manager for creating topics
+
 

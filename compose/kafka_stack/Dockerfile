@@ -1,4 +1,4 @@
-FROM landoop/fast-data-dev:cp3.3.0
+FROM landoop/fast-data-dev:cp4.0.0
 MAINTAINER Christoph Schranz <christoph.schranz@salzburgresearch.at>
 
 #RUN rm -rf /usr/share/landoop/sample-data \
