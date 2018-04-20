@@ -123,6 +123,38 @@ def reassemble_kafka_from_st():
         print(topic_name)
 
 
+def reassemble_kafka_from_st2():
+    time.sleep(20)  # wait for kafka and GOST server
+    print("Trying to restore kafka topics from SensorThings")
+
+    thing_id = 0
+    stati = list()
+    while True:
+        thing_id += 1
+        response = requests.request(
+            "GET", "http://localhost:8084/v1.0/Things({id})?$expand=Locations,Sensor,Datastreams,Observations,ObservedProperty"
+            .format(id=thing_id))
+        if response.status_code not in [200]:
+            break
+        logger.info(response)
+        thing = yaml.safe_load(response.text)
+        logger.info(thing)
+        channelID = thing.get("@iot.id")
+        companyID = thing.get("properties").get("owner")
+
+        topic_name = "eu.ChannelID_{chID}.CompanyID_{compID}".format(chID=channelID, compID=companyID)
+        topic_name = re.sub("[^a-zA-Z.0-9_-]+", "", topic_name.replace(" ", "-"))
+
+        status = create_topic(topic_name)
+        stati.append(status)
+
+    tracebacks = [status for status in stati if "Successfully created topic" != status]
+    if tracebacks is []:
+        logger.info("dc-service successfully restored kafka topics from Sensorthings")
+    else:
+        logger.warning("dc-service encountered errors while restoring topics: {}".format(tracebacks))
+
+
 def get_topic_name(payload):
     # is of the form eu.owner.thingname, only alphanumerics and .-_ are allowed
     topic_name = "eu."+str(payload["properties"]["owner"])+"."+str(payload["name"])
@@ -188,4 +220,4 @@ def submit_contract():
 if __name__ == '__main__':
     #app.run(host="0.0.0.0", debug=False, port=3033)
 
-    reassemble_kafka_from_st()
+    reassemble_kafka_from_st2()

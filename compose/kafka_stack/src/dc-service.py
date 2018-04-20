@@ -142,54 +142,38 @@ def reassemble_kafka_from_st():
     while True:
         thing_id += 1
         response = requests.request(
-            "GET", ST_SERVER + "Things({id})?$expand=Locations,Sensor,Datastreams,Observations,ObservedProperty"
+            "GET", ST_SERVER+"Things({id})?$expand=Locations,Sensor,Datastreams,Observations,ObservedProperty"
             .format(id=thing_id))
         if response.status_code not in [200]:
             break
         logger.info(response)
-        # thing = json.loads(response.text)
         thing = yaml.safe_load(response.text)
-        logger.info(thing)
 
-        orig_thing = dict()
-        original_keys = [s for s in thing.keys() if "@" not in s]
-        for key in original_keys:
-            instances = thing[key]
-            print(instances)
+        channelID = thing.get("@iot.id")
+        companyID = thing.get("properties").get("owner")
 
-            if isinstance(instances, str):
-                orig_thing[key] = instances
-            elif isinstance(instances, dict):
-                orig_thing[key] = instances
-            else:
-                orig_thing[key] = list()
-                for instance in instances:
-                    if isinstance(instance, str):
-                        orig_instance[key] = instance
-                    else:
-                        orig_instance = dict()
-                        original_subkeys = [s for s in instance.keys() if "@" not in s]
-                        for subkey in original_subkeys:
-                            orig_instance[subkey] = instance[subkey]
-                    orig_thing[key].append(orig_instance)
-
-        logger.info("Restored original contract from SensorThings: {}".format(orig_thing))
-        topic_name = get_topic_name(orig_thing)
-        print(topic_name)
+        topic_name = "eu.channelID_{chID}.companyID_{compID}".format(chID=channelID, compID=companyID)
+        topic_name = re.sub("[^a-zA-Z.0-9_-]+", "", topic_name.replace(" ", "-"))
+        logger.info(topic_name)
 
         status = create_topic(topic_name)
         stati.append(status)
+        logger.info("dc-service successfully restored kafka topic {} from Sensorthings".format(topic_name))
+
     tracebacks = [status for status in stati if "Successfully created topic" != status]
-    if tracebacks is []:
-        logger.info("dc-service successfully restored kafka topics from Sensorthings")
-    else:
+    if tracebacks is not []:
         logger.warning("dc-service encountered errors while restoring topics: {}".format(tracebacks))
 
 
 def get_topic_name(payload):
     # is of the form eu.owner.thingname, only alphanumerics and .-_ are allowed
-    topic_name = "eu."+str(payload["properties"]["owner"])+"."+str(payload["name"])
-    topic_name = re.sub("[^a-zA-Z.0-9_-]+", "", topic_name.replace(" ", "_"))
+    # topic_name = "eu."+str(payload["properties"]["owner"])+"."+str(payload["name"])
+
+    # is of the form eu.ChannelID_<channelID>.CompanyID_<companyID>
+    channelID = payload.get("@iot.id")
+    companyID = payload.get("properties").get("owner")
+    topic_name = "eu.ChannelID_{chID}.CompanyID_{compID}".format(chID=channelID, compID=companyID)
+    topic_name = re.sub("[^a-zA-Z.0-9_-]+", "", topic_name.replace(" ", "-"))
     return topic_name
 
 
@@ -212,7 +196,6 @@ def create_topic(topic_name):
         logger.warning("Couldn't create sensor with topic {}".format(topic_name))
         return "Couldn't create instance with response: {}".format(response)
 
-    logger.info("Added instance with kafka-topic {}.".format(topic_name))
     logger.info(response)
     return "Successfully created topic"
 
@@ -222,30 +205,24 @@ def create_topic(topic_name):
 @app.route('/submit_contract', methods=['GET', 'POST'])
 def submit_contract():
     logger.info("Received contract")
-    payload = json.loads(request.data)
+    # payload = json.loads(request.data)
+
+    headers = {'content-type': 'application/json'}
+    response = requests.request("POST", ST_SERVER + "Things", data=request.data, headers=headers)
+    payload = json.loads(response.text)
+
+    if response.status_code not in [200, 202]:
+        logger.warning("Posting contract to SensorThings failed with status {}".format(response.status_code))
+        logger.warning("Couldn't create instance {}".format(response.text))
+        return jsonify({"Couldn't create instance {}".format(response.text)}), 409
+
+    logger.info("Added topic with name {} to SensorThings".format(payload.get("name")))
 
     topic_name = get_topic_name(payload)
     status = create_topic(topic_name)
-    print("Kafka returned: {}".format(status))
+    logger.info("Created kafka topic with name: {}, returned status {}".format(topic_name, status))
 
-    if status == "Successfully created topic":
-        logger.info("Added topic with name {}".format(topic_name))
-
-        headers = {'content-type': 'application/json'}
-        response = requests.request("POST", ST_SERVER + "Things", data=request.data, headers=headers)
-        logger.info("Created thing ended with status {}".format(response.status_code))
-
-        ds = payload.get("Datastreams")
-        for i, stream in enumerate(ds):
-            print("Datastream {}".format(i))
-            print(stream.get("name"))
-        payload = json.loads(response.text)
-        payload["@iot.kafkaTopic"] = topic_name
-        return jsonify(payload)
-
-    else:
-        logger.warning("Couldn't create instance {}".format(topic_name))
-        return jsonify({"Couldn't create instance {}".format(topic_name): str(status)}), 409
+    return jsonify(payload)
 
 
 if __name__ == '__main__':
