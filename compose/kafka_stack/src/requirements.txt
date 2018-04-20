@@ -3,3 +3,4 @@ flask
 redis
 requests
 uuid
+pyyaml

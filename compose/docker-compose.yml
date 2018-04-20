@@ -2,7 +2,7 @@ version: "3.4"
 
 services:
   # this is our kafka cluster.
-  kafka-cluster:
+  kafka-cluster:  # the kafka-manager must be part of this service as topics can only be created from cli
     build: kafka_stack/
     environment:
       ADV_HOST: 127.0.0.1         # Change to 192.168.99.100 if using Docker Toolbox
@@ -16,5 +16,54 @@ services:
       - 9581-9585:9581-9585       # JMX Ports
       - 9092:9092                 # Kafka Broker
       - 3033:3033                 # Custom Kafka Manager for creating topics
+    networks:
+      - datachannel
+
+  gost-db:
+    image: geodan/gost-db
+    restart: always
+    volumes:
+        - postgis:/var/lib/postgresql/data
+    environment:
+        POSTGRES_DB: gost
+        POSTGRES_USER: postgres
+        POSTGRES_PASSWORD: postgres
+    networks:
+      - datachannel
+  gost:
+    image: geodan/gost
+    restart: always
+    volumes:
+        - gost_conf:/gostserver/config
+    depends_on:
+        # - mosquitto
+        - gost-db
+    environment:
+        GOST_DB_HOST: gost-db
+        GOST_SERVER_EXTERNAL_URI: http://${HOSTNAME}:8084
+        GOST_SERVER_MAX_ENTITIES: 200
+        # GOST_MQTT_HOST: mosquitto
+    networks:
+      - datachannel
+
+  dashboard:  # service reachable from kafka stack with: wget  --method GET   --output-document   - 'http://dashboard:8080/v1.0/Things(3)'
+    image: geodan/gost-dashboard
+    restart: always
+    ports:  # use port 8080 for internal requests
+      - 8084:8080
+    depends_on:
+      - gost
+    networks:
+      - datachannel
 
 
+volumes:
+  postgis: {}
+  nodered: {}
+  gost_conf: {}
+  mosquitto_data: {}
+  mosquitto_conf: {}
+
+
+networks:
+  datachannel:
