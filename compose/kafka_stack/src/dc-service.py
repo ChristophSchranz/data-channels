@@ -62,10 +62,12 @@ def print_adapter_status():
     try:
         with open(STATUS_FILE) as f:
             adapter_status = json.loads(f.read())
-    except FileNotFoundError:
+    except:
         adapter_status = {"application": "kafka-manager",
                           "status": "running",
                           "topics": list_topics()}
+        with open(STATUS_FILE, "w") as f:
+            f.write(json.dumps(adapter_status))
     return jsonify(adapter_status)
 
 
@@ -85,7 +87,7 @@ def reassemble_kafka_from_st():
     SensorThings contracts.
     :return:
     """
-    time.sleep(15)  # wait for kafka and GOST server
+    time.sleep(10)  # wait for kafka and GOST server
     print("Trying to restore kafka topics from SensorThings")
 
     thing_id = 0
@@ -169,14 +171,15 @@ def submit_contract():
         return jsonify({"Couldn't create instance {}".format(response.text)}), 409
 
     payload = yaml.safe_load(response.text)
-    logger.info("Added topic with name {} to SensorThings".format(payload.get("name")))
+    logger.info("Added contract with name {} to SensorThings".format(payload.get("name")))
 
     topic_name = get_topic_name(payload)
     status = create_topic(topic_name)
     logger.info("Created kafka topic with name {tpc} on system {sys}, returned status: {stat}"
                 .format(tpc=topic_name, sys=payload.get("name"), stat=status))
 
-    return jsonify(payload)
+    payload["@iot.dataChannelID"] = topic_name
+    return jsonify(payload), 201
 
 
 if __name__ == '__main__':
