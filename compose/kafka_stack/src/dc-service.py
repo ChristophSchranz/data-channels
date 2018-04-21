@@ -6,6 +6,7 @@ import json
 import yaml
 import logging
 from multiprocessing import Process
+from datetime import datetime
 import requests
 from flask import Flask, jsonify, request
 from redis import Redis
@@ -50,25 +51,7 @@ app = Flask(__name__)
 redis = Redis(host='redis', port=6379)
 logger.info("Added flask API on port {}.".format(6379))
 
-
-# http://0.0.0.0:3033/
-@app.route('/')
-@app.route('/status')
-def print_adapter_status():
-    """
-    This function is called by a sebserver request and prints the current meta information.
-    :return: status
-    """
-    try:
-        with open(STATUS_FILE) as f:
-            adapter_status = json.loads(f.read())
-    except:
-        adapter_status = {"application": "kafka-manager",
-                          "status": "running",
-                          "topics": list_topics()}
-        with open(STATUS_FILE, "w") as f:
-            f.write(json.dumps(adapter_status))
-    return jsonify(adapter_status)
+build_date = str(datetime.now())
 
 
 def list_topics():
@@ -81,13 +64,24 @@ def list_topics():
     return topics
 
 
+def get_adapter_status():
+    try:
+        with open(STATUS_FILE) as f:
+            adapter_status = json.loads(f.read())
+    except:
+        adapter_status = {"application": "kafka-manager",
+                          "status": "initialisation",
+                          "build_date": build_date}
+    return adapter_status
+
+
 def reassemble_kafka_from_st():
     """
     When the broker is started, this function is called to restore the kafka topics from the stored
     SensorThings contracts.
     :return:
     """
-    time.sleep(10)  # wait for kafka and GOST server
+    time.sleep(15)  # wait for kafka and GOST server (
     print("Trying to restore kafka topics from SensorThings")
 
     thing_id = 0
@@ -111,6 +105,10 @@ def reassemble_kafka_from_st():
         stati.append(status)
 
     logger.info("dc-service successfully restored all kafka topics from Sensorthings")
+    adapter_status = get_adapter_status()
+    adapter_status["status"] = "running"
+    with open(STATUS_FILE, "w") as f:
+        f.write(json.dumps(adapter_status))
 
 
 def get_topic_name(payload):
@@ -121,7 +119,8 @@ def get_topic_name(payload):
     channel_id = payload.get("@iot.id")
     company_id = payload.get("properties").get("owner")
     topic_name = "eu.channelID_{chID}.companyID_{compID}".format(chID=channel_id, compID=company_id)
-    topic_name = re.sub("[^a-zA-Z.0-9_-]+", "", topic_name.replace(" ", "-"))  # only alphanumerics and _.- are allowed
+    #  only alphanumerics and _.- are allowed
+    topic_name = re.sub("[^a-zA-Z.0-9_-]+", "", topic_name.replace(" ", "-"))
     return topic_name
 
 
@@ -130,9 +129,9 @@ def create_topic(topic_name):
     Given a kafka topic name, this function calls the internal cli to create a topic.
     :return: status string. Success, topic already exists or an other error message
     """
-    cmd = """kafka-topics --create --zookeeper {zoo} --topic {tpc}
- --replication-factor {rep} --partitions {par} --config cleanup.policy=compact --config flush.ms=60000
- --config retention.ms={ret}
+    cmd = """kafka-topics --create --zookeeper {zoo} --topic {tpc} 
+--replication-factor {rep} --partitions {par} --config cleanup.policy=compact --config flush.ms=60000 
+--config retention.ms={ret}
 """.format(zoo=ZOOKEEPER_HOST, tpc=topic_name, par=NUMBER_OF_PARTITIONS, rep=NUMBER_OF_REPLICAS,
            ret=RETENTION_TIME*31*24*3600*1000).replace("\n", "")
     pipe = os.popen(cmd)
@@ -162,8 +161,16 @@ def submit_contract():
     """
     logger.info("Received new contract")
 
+    adapter_status = get_adapter_status()
+    if adapter_status["status"] != "running":
+        logger.error("Can't submit contract during initialisation")
+        return jsonify({"status": "Can't submit contract during initialisation"}), 503
+
     headers = {'content-type': 'application/json'}
-    response = requests.request("POST", ST_SERVER + "Things", data=request.data, headers=headers)
+    try:
+        response = requests.request("POST", ST_SERVER + "Things", data=request.data, headers=headers)
+    except:
+        return jsonify({"status": "Couldn't parse input"}), 406
 
     if response.status_code not in [200, 201, 202]:
         logger.warning("Posting contract to SensorThings failed with status {}".format(response.status_code))
@@ -180,6 +187,22 @@ def submit_contract():
 
     payload["@iot.dataChannelID"] = topic_name
     return jsonify(payload), 201
+
+
+# http://0.0.0.0:3033/
+@app.route('/')
+@app.route('/status')
+def print_adapter_status():
+    """
+    This function is called by a sebserver request and prints the current meta information.
+    :return: status
+    """
+    adapter_status = get_adapter_status()
+    adapter_status["topics"] = list_topics()
+    with open(STATUS_FILE, "w") as f:
+        f.write(json.dumps(adapter_status))
+    # adapter_status["status"] = ["running" if not lock else "initialisation"][0]
+    return jsonify(adapter_status)
 
 
 if __name__ == '__main__':
