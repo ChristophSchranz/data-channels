@@ -41,7 +41,6 @@ sudo docker-compose up --build -d
 
 The flag `-d` stands for running it in background (detached mode):
 
-
 Watch the logs with:
 
 ```bash
@@ -49,6 +48,24 @@ sudo docker-compose logs -f
 ```
 
 
+As soon as the instances are up, the `dc-service` synchronizes the kafka topics
+from the SensorThings instance. During this initialisation phase, the `dc-service`
+prevents kafka from any operations that would lead to an error. After restoring
+contracts stored in SensorThings new contracts can be submitted and
+the output would look like following:
+
+```
+Trying to restore kafka topics from SensorThings
+kafka-cluster_1  | Created topic "eu.channelID_1.companyID_ownername".
+kafka-cluster_1  | Created topic "eu.channelID_2.companyID_ownername".
+...
+kafka-cluster_1  | Created topic "eu.channelID_N.companyID_Salzburg-Research".
+kafka-cluster_1  | dc-service successfully restored all kafka topics from Sensorthings
+```
+
+
+All outputs and commands below are examples of how the `dc-service` can
+be used.
 
 ### Kafka-Services:
 

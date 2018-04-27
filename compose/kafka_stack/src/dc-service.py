@@ -81,7 +81,7 @@ def reassemble_kafka_from_st():
     SensorThings contracts.
     :return:
     """
-    time.sleep(15)  # wait for kafka and GOST server (
+    time.sleep(20)  # wait for kafka and GOST server (15 s is may to less)
     print("Trying to restore kafka topics from SensorThings")
 
     thing_id = 0
