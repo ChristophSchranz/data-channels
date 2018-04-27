@@ -1,0 +1,71 @@
+API
+
+http://hostname:3033/submit_contract
+
+header=application/json
+
+body:
+{
+  "name": "Ultimaker 2, number7",
+  "description": "A 3D printing system in the 3D printing farm.",
+  "properties": {
+		"owner": "ownername",
+		"from": "2018-04-19T13:11:12+00:00",
+		"to": "2018-06-09T13:11:12+00:00",
+    "monitoring_clauses": {
+			"machined part": "partID",
+			"machined order": "orderID"
+		}
+  },
+  "Locations": [{
+    "name": "IoT Lab",
+    "description": "Salzburg Research",
+    "encodingType": "application/vnd.geo+json",
+    "location": {
+      "type": "Point",
+      "coordinates": [13.040631, 47.822782]
+    }
+  }],
+  "Datastreams": [{
+    "name": "Air Temperature DS",
+    "description": "Datastream for recording temperature",
+    "observationType": "http://www.opengis.net/def/observationType/OGC-OM/2.0/OM_Measurement",
+    "unitOfMeasurement": {
+      "name": "Degree Celsius",
+      "symbol": "degC",
+      "definition": "http://www.qudt.org/qudt/owl/1.0.0/unit/Instances.html#DegreeCelsius"
+    },
+    "ObservedProperty": {
+      "name": "Area Temperature",
+      "description": "The degree or intensity of heat present in the area",
+      "definition": "http://www.qudt.org/qudt/owl/1.0.0/quantity/Instances.html#AreaTemperature"
+    },
+    "Sensor": {
+      "name": "DHT22",
+      "description": "DHT22 temperature sensor",
+      "encodingType": "application/pdf",
+      "metadata": "https://cdn-shop.adafruit.com/datasheets/DHT22.pdf"
+    }
+  },
+								 {
+    "name": "Nozzle Temperature DS",
+    "description": "Datastream for recording temperature of the printe's nozzle",
+    "observationType": "http://www.opengis.net/def/observationType/OGC-OM/2.0/OM_Measurement",
+    "unitOfMeasurement": {
+      "name": "Degree Celsius",
+      "symbol": "degC",
+      "definition": "http://www.qudt.org/qudt/owl/1.0.0/unit/Instances.html#DegreeCelsius"
+    },
+    "ObservedProperty": {
+      "name": "Nozzle Temperature",
+      "description": "The degree or intensity of heat of the printer's nozzle",
+      "definition": "http://www.qudt.org/qudt/owl/1.0.0/quantity/Instances.html#AreaTemperature"
+    },
+    "Sensor": {
+      "name": "PT100",
+      "description": "PT100 temperature sensor",
+      "encodingType": "application/pdf",
+      "metadata": "http://irtfweb.ifa.hawaii.edu/~iqup/domeenv/PDF/pt100plat.pdf"
+    }
+  }]
+}

@@ -1,6 +1,5 @@
-FROM landoop/fast-data-dev:cp3.3.0
+FROM landoop/fast-data-dev:cp4.0.0
 MAINTAINER Christoph Schranz <christoph.schranz@salzburgresearch.at>
-
 
 #RUN rm -rf /usr/share/landoop/sample-data \
 #  && mkdir /usr/share/landoop/sample-data
@@ -19,7 +18,7 @@ WORKDIR /home/src
 ADD src/requirements.txt /home/src
 RUN pip install -r /home/src/requirements.txt
 
-ADD src/kafka_manager.py /home/src
+ADD src/dc-service.py /home/src
 ADD src/run.sh /home/src
 
 EXPOSE 2181 3030 3031 8081 8082 8083 9092

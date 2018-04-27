@@ -40,8 +40,6 @@ kafka-topics --create --zookeeper localhost:2181 --topic eu.srfg.ultimaker.temp1
 # Consume data
 kafka-avro-console-consumer --zookeeper localhost:2181 --topic eu.srfg.ultimaker.temp124
 
-
-
 # Consume the records from the beginning of the topic:
 kafka-avro-console-consumer --topic eu.srfg.ultimaker.temp124 \
     --bootstrap-server 127.0.0.1:9092 \
